@@ -56,12 +56,28 @@ includes.each do |inc, subinc|
           partial = model_partial(value)
           json.partial! partial, partial.split('/').last.to_sym => value, includes: subinc
         end
+      # For single attachment (ActiveStorage::Attached::One)
+      elsif value.is_a?(ActiveStorage::Attached::One)
+        attachment = value.attachment
+        if attachment.nil?
+          json.set! inc, nil
+        else
+          json.set! inc, { id: attachment.id, url: attachment.url }
+        end
+
+      # For multiple attachments (ActiveStorage::Attached::Many)
+      elsif value.is_a?(ActiveStorage::Attached::Many)
+        attachments = value.attachments
+        json.set! inc do
+          json.array! attachments do |attachment|
+            json.extract! attachment, :id, :url
+          end
+        end
       else
         json.set! inc, value.as_json
       end
     end
   end
-
 end
 
 if !record.errors.blank?
