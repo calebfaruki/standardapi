@@ -82,10 +82,29 @@ module StandardAPI
     end
 
     def update
+      model_name = model.model_name.singular
       record = resources.find(params[:id])
-      instance_variable_set("@#{model.model_name.singular}", record)
+      instance_variable_set("@#{model_name}", record)
 
-      if record.update(model_params)
+      # Extract parameters for ActiveStorage attachments
+      update_params = if defined?(ActiveStorage)
+        attachment_params = params[model_name].select { |k, v| model.reflect_on_attachment(k) && !v.nil? }.compact
+        params[model_name].except(*attachment_params.keys).compact
+      else
+        model_params # cant be compacted, else tests fail. Why?
+      end
+
+      if record.update(update_params)
+        if defined?(ActiveStorage)
+          attachment_params.each do |key, value|
+            if model.reflect_on_attachment(key).macro == :has_many_attached
+              value.each { |v| record.send(key).attach(v) }
+            elsif model.reflect_on_attachment(key).macro == :has_one_attached
+              record.send(key).attach(value)
+            end
+          end
+        end
+
         if request.format == :html
           redirect_to url_for(
             controller: record.class.base_class.model_name.collection,
