@@ -86,17 +86,9 @@ module StandardAPI
       record = resources.find(params[:id])
       instance_variable_set("@#{model_name}", record)
 
-      # Extract parameters for ActiveStorage attachments
-      update_params = if defined?(ActiveStorage)
-        attachment_params = params[model_name].select { |k, v| model.reflect_on_attachment(k) && !v.nil? }.compact
-        params[model_name].except(*attachment_params.keys).compact
-      else
-        model_params # cant be compacted, else tests fail. Why?
-      end
-
-      if record.update(update_params)
+      if record.update(model_params)
         if defined?(ActiveStorage)
-          attachment_params.each do |key, value|
+          active_storage_params.each do |key, value|
             if model.reflect_on_attachment(key).macro == :has_many_attached
               value.each { |v| record.send(key).attach(v) }
             elsif model.reflect_on_attachment(key).macro == :has_one_attached
@@ -261,9 +253,13 @@ module StandardAPI
       end
     end
 
+    def active_storage_params
+      params[model.model_name.singular].select { |k, v| model.reflect_on_attachment(k) && !v.nil? }.compact
+    end
+
     def model_params
       if self.respond_to?("#{model.model_name.singular}_params", true)
-        params.require(model.model_name.singular).permit(self.send("#{model.model_name.singular}_params"))
+        params.require(model.model_name.singular).permit(self.send("#{model.model_name.singular}_params")).except(*active_storage_params.keys)
       else
         ActionController::Parameters.new
       end
