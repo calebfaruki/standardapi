@@ -86,20 +86,15 @@ module StandardAPI
       record = resources.find(params[:id])
       instance_variable_set("@#{model_name}", record)
 
-      if record.update(model_params)
-        if defined?(ActiveStorage)
-          active_storage_params.each do |key, value|
-            if model.reflect_on_attachment(key).macro == :has_many_attached
-              # Replaces deprecated `config.active_storage.replace_on_assign_to_many` removed in Rails 7.1
-              value.each do |v|
-                record.send(key).attach(v) if record.send(key).none? { |attachment| attachment.blob.key == v[:key] }
-              end
-            elsif model.reflect_on_attachment(key).macro == :has_one_attached
-              record.send(key).attach(value)
-            end
-          end
+      if defined?(ActiveStorage)
+        active_storage_params.each do |key, signed_id_or_ids|
+          record.send(key).attach(signed_id_or_ids)
         end
+      end
 
+      filtered_params = model_params.except(*active_storage_params.keys)
+
+      if record.update(filtered_params)
         if request.format == :html
           redirect_to url_for(
             controller: record.class.base_class.model_name.collection,
