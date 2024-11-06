@@ -90,7 +90,10 @@ module StandardAPI
         if defined?(ActiveStorage)
           active_storage_params.each do |key, value|
             if model.reflect_on_attachment(key).macro == :has_many_attached
-              value.each { |v| record.send(key).attach(v) }
+              # Replaces deprecated `config.active_storage.replace_on_assign_to_many` removed in Rails 7.1
+              value.each do |v|
+                record.send(key).attach(v) if record.send(key).none? { |attachment| attachment.blob.key == v[:key] }
+              end
             elsif model.reflect_on_attachment(key).macro == :has_one_attached
               record.send(key).attach(value)
             end
