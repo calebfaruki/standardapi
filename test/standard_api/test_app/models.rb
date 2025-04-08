@@ -1,7 +1,8 @@
 # = Models
 
 class Account < ActiveRecord::Base
-  has_many :photos, -> { sort(:created_at) }
+  validates :email, format: /.+@.+/, allow_nil: true
+  has_many :photos, -> { order(:created_at) }
   belongs_to :property
   belongs_to :subject, polymorphic: true
 end
@@ -15,8 +16,8 @@ end
 class Document < ActiveRecord::Base
   attr_accessor :file
 
-  enum level:   { public: 0, secret: 1 }, _suffix: true
-  enum rating:  { poor: 0, ok: 1, good: 2 }
+  enum :level, { public: 0, secret: 1 }, suffix: true
+  enum :rating, { poor: 0, ok: 1, good: 2 }
 end
 
 class Pdf < Document
@@ -29,13 +30,25 @@ class Property < ActiveRecord::Base
   has_one :document_attachments, class_name: "Attachment", as: :record, inverse_of: :record
   has_one :document, through: "document_attachments"
 
-
   validates :name, presence: true
   accepts_nested_attributes_for :photos
 
   def english_name
     'A Name'
   end
+
+  # Numericality Validation
+  validates :numericality, numericality: {
+    greater_than: 1,
+    greater_than_or_equal_to: 2,
+    equal_to: 2,
+    less_than_or_equal_to: 2,
+    less_than: 3,
+    other_than: 0,
+    even: true,
+    in: 1..3
+  }
+  
 end
 
 class LSNType < ActiveRecord::Type::Value
@@ -82,7 +95,13 @@ end
 class Camera < ActiveRecord::Base
 end
 
-# = Migration
+class UuidModel < ActiveRecord::Base
+end
+
+# = Create/recreate database and migration
+task = ActiveRecord::Tasks::PostgreSQLDatabaseTasks.new(ActiveRecord::Base.connection_db_config)
+task.drop
+task.create
 
 class CreateModelTables < ActiveRecord::Migration[6.0]
 
@@ -95,6 +114,7 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
 
     create_table "accounts", force: :cascade do |t|
       t.string   'name',                 limit: 255
+      t.string   'email',                limit: 255
       t.integer  'property_id'
       t.integer  "subject_id"
       t.string   "subject_type"
@@ -123,6 +143,7 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       t.decimal  "size"
       t.datetime "created_at",                         null: false
       t.boolean  "active",             default: false
+      t.integer  "numericality",       default: 2
     end
 
     create_table "references", force: :cascade do |t|
@@ -161,6 +182,12 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       t.integer  'record_id'
       t.integer  'document_id'
     end
+
+    create_table "uuid_models", id: :uuid, force: :cascade do |t|
+      t.string 'title', default: 'recruit'
+      t.string 'name', default: -> { 'round(random() * 1000)' }
+    end
+
   end
 
 end

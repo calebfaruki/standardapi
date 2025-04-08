@@ -17,31 +17,25 @@ module StandardAPI
             preloads[key] = value
           when Hash, ActiveSupport::HashWithIndifferentAccess
             if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'sort', 'distinct'].include?(x) }
-              if !reflection.polymorphic?
-                preloads[key] = preloadables_hash(reflection.klass, value)
-              end
+               preloads[key.to_sym] = preloadables_hash(value)
             end
           end
         end
       end
 
-      preloads.empty? ? record : record.preload(preloads)
+      preloads.present? ? record.preload(preloads) : record
     end
 
-    def preloadables_hash(klass, iclds)
+    def preloadables_hash(iclds)
       preloads = {}
 
       iclds.each do |key, value|
-        if reflection = klass.reflections[key]
-          case value
-          when true
-            preloads[key] = value
-          when Hash, ActiveSupport::HashWithIndifferentAccess
-            if !value.keys.any? { |x| ['when', 'where', 'limit', 'offset', 'sort', 'distinct'].include?(x) }
-              if !reflection.polymorphic?
-                preloads[key] = preloadables_hash(reflection.klass, value)
-              end
-            end
+        case value
+        when true
+          preloads[key] = value
+        when Hash, ActiveSupport::HashWithIndifferentAccess
+          if !value.keys.any? { |x| [ 'when', 'where', 'limit', 'offset', 'sort', 'distinct' ].include?(x) }
+            preloads[key] = preloadables_hash(value)
           end
         end
       end
@@ -102,14 +96,14 @@ module StandardAPI
       timestamp = timestamp.max
 
       case association = record.class.reflect_on_association(relation)
-      when ActiveRecord::Reflection::HasManyReflection, ActiveRecord::Reflection::HasAndBelongsToManyReflection, ActiveRecord::Reflection::HasOneReflection, ActiveRecord::Reflection::ThroughReflection
-        "#{record.model_name.cache_key}/#{record.id}/#{includes_to_cache_key(relation, subincludes)}-#{timestamp.utc.to_s(record.cache_timestamp_format)}"
-      when ActiveRecord::Reflection::BelongsToReflection
+      when ::ActiveRecord::Reflection::HasManyReflection, ::ActiveRecord::Reflection::HasAndBelongsToManyReflection, ::ActiveRecord::Reflection::HasOneReflection, ::ActiveRecord::Reflection::ThroughReflection
+        "#{record.model_name.cache_key}/#{record.id}/#{includes_to_cache_key(relation, subincludes)}-#{timestamp.utc.to_fs(record.cache_timestamp_format)}"
+      when ::ActiveRecord::Reflection::BelongsToReflection
         klass = association.options[:polymorphic] ? record.send(association.foreign_type).constantize : association.klass
         if subincludes.empty?
-          "#{klass.model_name.cache_key}/#{record.send(association.foreign_key)}-#{timestamp.utc.to_s(klass.cache_timestamp_format)}"
+          "#{klass.model_name.cache_key}/#{record.send(association.foreign_key)}-#{timestamp.utc.to_fs(klass.cache_timestamp_format)}"
         else
-          "#{klass.model_name.cache_key}/#{record.send(association.foreign_key)}/#{digest_hash(sort_hash(subincludes))}-#{timestamp.utc.to_s(klass.cache_timestamp_format)}"
+          "#{klass.model_name.cache_key}/#{record.send(association.foreign_key)}/#{digest_hash(sort_hash(subincludes))}-#{timestamp.utc.to_fs(klass.cache_timestamp_format)}"
         end
       else
         raise ArgumentError, 'Unkown association type'
