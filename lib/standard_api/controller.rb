@@ -96,7 +96,7 @@ module StandardAPI
 
       filtered_params = model_params.except(*active_storage_params&.keys)
 
-      if record.update(model_params)
+      if record.update(filtered_params)
         headers['Affected-Rows'] = 1
         if request.format == :html
           redirect_to url_for(
