@@ -6,6 +6,7 @@ require 'action_controller'
 require 'active_record/filter'
 require 'active_record/sort'
 require 'active_support/core_ext/hash/indifferent_access'
+require 'action_dispatch'
 
 require 'standard_api/version'
 require 'standard_api/errors'

@@ -140,7 +140,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       model.columns.each do |column|
         assert_equal json_column_type(column.sql_type), schema.dig('models', model.name, 'attributes', column.name, 'type')
         default = column.default
-        if default then
+        if default
           default = model.connection.lookup_cast_type_from_column(column).deserialize(default)
           assert_equal default, schema.dig('models', model.name, 'attributes', column.name, 'default')
         else
@@ -149,13 +149,42 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
         assert_equal column.name == model.primary_key, schema.dig('models', model.name, 'attributes', column.name, 'primary_key')
         assert_equal column.null, schema.dig('models', model.name, 'attributes', column.name, 'null')
         assert_equal column.array, schema.dig('models', model.name, 'attributes', column.name, 'array')
-        if column.comment then
+        if column.comment
           assert_equal column.comment, schema.dig('models', model.name, 'attributes', column.name, 'comment')
         else
           assert_nil schema.dig('models', model.name, 'attributes', column.name, 'comment')
         end
+
+        if column.respond_to?(:auto_populated?)
+          assert_equal !!column.auto_populated?, schema.dig('models', model.name, 'attributes', column.name, 'auto_populated')
+        end
       end
     end
+
+    assert_equal true, schema['models']['Account']['attributes']['id']['readonly']
+    assert_equal false, schema['models']['Account']['attributes']['name']['readonly']
+
+    assert_equal [
+      {"format"=>{"allow_nil"=>true, "with"=>"(?-mix:.+@.+)"}}
+    ], schema['models']['Account']['attributes']['email']['validations']
+
+    assert_equal [
+      { "presence" => true }
+    ], schema['models']['Property']['attributes']['name']['validations']
+
+    assert_equal [
+      { "numericality" => {
+          "greater_than" => 1,
+          "greater_than_or_equal_to" => 2,
+          "equal_to" => 2,
+          "less_than_or_equal_to" => 2,
+          "less_than" => 3,
+          "other_than" => 0,
+          "even" => true,
+          "in" => "1..3"
+        }
+      }
+    ], schema['models']['Property']['attributes']['numericality']['validations']
 
     assert_equal 'test comment', schema['comment']
   end
@@ -222,7 +251,38 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     patch document_path(pdf), params: { document: pdf.attributes }
     assert_redirected_to document_path(pdf)
   end
+  
+  test 'Controller#create has Affected-Rows header' do
+    attrs = attributes_for(:property)
+    post properties_path, params: { property: attrs }, as: :json
+    assert_equal response.headers['Affected-Rows'], 1
+    
+    attrs = attributes_for(:property, :invalid)
+    post properties_path, params: { property: attrs }, as: :json
+    assert_equal response.headers['Affected-Rows'], 0
+  end
 
+  test 'Controller#update has Affected-Rows header' do
+    property = create(:property)
+    patch property_path(property), params: { property: property.attributes }, as: :json
+    assert_equal response.headers['Affected-Rows'], 1
+
+    attrs = attributes_for(:property, :invalid)
+    patch property_path(property), params: { property: attrs }, as: :json
+    assert_equal response.headers['Affected-Rows'], 0
+  end
+
+  test 'Controller#destroy has Affected-Rows header' do
+    property = create(:property)
+    delete property_path(property), as: :json
+    assert_equal response.headers['Affected-Rows'], 1
+    
+    assert_raises ActiveRecord::RecordNotFound do
+      delete property_path(property), as: :json
+      assert_equal response.headers['Affected-Rows'], 0
+    end
+  end
+  
   # = View Tests
 
   test 'rendering tables' do
@@ -230,7 +290,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     # assert_equal ['properties', 'accounts', 'photos', 'references', 'sessions', 'unlimited'], response.parsed_body
     # Multiple 'accounts' because multiple controllers with that model for testing.
-    assert_equal ["properties", "accounts", "documents", "photos", "references", "accounts", 'accounts'].sort, response.parsed_body.sort
+    assert_equal ["properties", "accounts", "documents", "photos", "references", "accounts", 'accounts', 'uuid_models'].sort, response.parsed_body.sort
   end
 
   test 'rendering null attribute' do
@@ -470,7 +530,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
       },
       format: 'json')
 
-    assert_equal [photos.first.id], JSON(response.body)['photos'].map { |x| x['id'] }
+    assert_equal [photos.map(&:id).sort.first], JSON(response.body)['photos'].map { |x| x['id'] }
 
     get property_path(property,
       include: {
@@ -721,5 +781,37 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal [1], JSON(response.body)
   end
+
+  test 'preloading polymorphic associations' do
+    p1 = create(:property)
+    p2 = create(:property)
+    c1 = create(:camera)
+    c2 = create(:camera)
+    a1 = create(:account, subject: p1, subject_cached_at: Time.now)
+    a2 = create(:account, subject: p2, subject_cached_at: Time.now)
+    a3 = create(:account, subject: c1, subject_cached_at: Time.now)
+    a4 = create(:account, subject: c2, subject_cached_at: Time.now)
+    a5 = create(:account, subject: c2, subject_cached_at: Time.now)
+
+    assert_sql(
+      'SELECT "properties".* FROM "properties" WHERE "properties"."id" IN ($1, $2)',
+      'SELECT "cameras".* FROM "cameras" WHERE "cameras"."id" IN ($1, $2)'
+    ) do
+      assert_no_sql("SELECT \"properties\".* FROM \"properties\" WHERE \"properties\".\"id\" = $1 LIMIT $2") do
+        get accounts_path(limit: 10, include: { subject: { landlord: { when: { subject_type: 'Property' } } } }, format: 'json')
+
+        assert_equal p1.id, a1.subject_id
+        assert_equal p2.id, a2.subject_id
+        assert_equal c1.id, a3.subject_id
+        assert_equal p1.id, JSON(response.body).dig(0, 'subject', 'id')
+        assert_equal p2.id, JSON(response.body).dig(1, 'subject', 'id')
+        assert_equal c1.id, JSON(response.body).dig(2, 'subject', 'id')
+        assert_equal c2.id, JSON(response.body).dig(3, 'subject', 'id')
+        assert_equal c2.id, JSON(response.body).dig(4, 'subject', 'id')
+      end
+    end
+  end
+
+
 
 end

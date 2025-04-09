@@ -90,3 +90,6 @@ class DefaultLimitController < ApplicationController
   end
 
 end
+
+class UuidModelController < ApplicationController
+end

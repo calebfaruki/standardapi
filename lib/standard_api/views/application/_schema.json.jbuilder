@@ -8,7 +8,7 @@ if model.nil? && controller_name == "application"
       array: ['index'].include?(route.requirements[:action]) }
   end
 
-  json.set! 'comment', ActiveRecord::Base.connection.database_comment
+  json.set! 'comment', ::ActiveRecord::Base.connection.database_comment
 
   json.set! 'routes' do
     json.array!(routes) do |route|
@@ -52,21 +52,37 @@ else
     model.columns.each do |column|
       default = column.default ? model.connection.lookup_cast_type_from_column(column).deserialize(column.default) : nil
       type = case model.type_for_attribute(column.name)
-      when ActiveRecord::Enum::EnumType
+      when ::ActiveRecord::Enum::EnumType
         default = model.defined_enums[column.name].key(default)
         "string"
       else
         json_column_type(column.sql_type)
       end
 
-      json.set! column.name, {
-        type: type,
-        default: default,
-        primary_key: column.name == model.primary_key,
-        null: column.null,
-        array: column.array,
-        comment: column.comment
-      }
+      json.set! column.name do
+        json.set! 'type', type
+        json.set! 'default', default
+        json.set! 'primary_key', column.name == model.primary_key
+        json.set! 'null', column.null
+        json.set! 'array', column.array
+        json.set! 'comment', column.comment
+        # TODO: it would be nice if rails responded with a true or false here
+        # instead of the function itself
+        json.set! 'auto_populated', !!column.auto_populated? if column.respond_to?(:auto_populated?)
+
+        json.set! 'readonly', (if controller.respond_to?("#{ model.model_name.singular }_attributes")
+          !controller.send("#{ model.model_name.singular }_attributes").map(&:to_s).include?(column.name)
+        else
+          model.readonly_attribute?(column.name)
+        end)
+
+        validations = model.validators.
+          select { |v| v.attributes.include?(column.name.to_sym) }.
+          map { |v|
+            { v.kind => v.options.empty? ? true : v.options.as_json }
+          }.compact
+        json.set! 'validations', validations
+       end
     end
   end
 
@@ -74,4 +90,3 @@ else
   json.set! 'comment', model.connection.table_comment(model.table_name)
 
 end
-

@@ -7,15 +7,26 @@ module PropertyACL
       :description,
       :constructed,
       :size,
-      :active
+      :active,
+      :numericality
       # :photos_attributes,
       # { photos_attributes: [ :id, :account_id, :property_id, :format] }
     ]
   end
 
-  # Sortings allowed
+  # Orderings allowed
   def sorts
-    ["id", "name", "aliases", "description", "constructed", "size", "created_at", "active"]
+    [
+      "id",
+      "name",
+      "aliases",
+      "description",
+      "constructed",
+      "size",
+      "created_at",
+      "active",
+      "numericality"
+    ]
   end
 
   # Sub resources allowed to be included in the response

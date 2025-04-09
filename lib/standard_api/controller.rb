@@ -63,6 +63,7 @@ module StandardAPI
       instance_variable_set("@#{model.model_name.singular}", record)
 
       if record.save(context: model_context)
+        headers['Affected-Rows'] = 1
         if request.format == :html
           redirect_to url_for(
             controller: record.class.base_class.model_name.collection,
@@ -74,6 +75,7 @@ module StandardAPI
           render :show, status: :created
         end
       else
+        headers['Affected-Rows'] = 0
         if request.format == :html
           render :new, status: :bad_request
         else
@@ -93,6 +95,7 @@ module StandardAPI
 
       record.assign_attributes(model_params)
       if record.save(context: model_context)
+        headers['Affected-Rows'] = 1
         if request.format == :html
           redirect_to url_for(
             controller: record.class.base_class.model_name.collection,
@@ -104,6 +107,7 @@ module StandardAPI
           render :show, status: :ok
         end
       else
+        headers['Affected-Rows'] = 0
         if request.format == :html
           render :edit, status: :bad_request
         else
@@ -116,6 +120,7 @@ module StandardAPI
       records = resources.find(params[:id].split(','))
       model.transaction { records.each(&:destroy!) }
 
+      headers['Affected-Rows'] = records.size
       head :no_content
     end
 
@@ -124,9 +129,9 @@ module StandardAPI
       association = resource.association(params[:relationship])
 
       result = case association
-      when ActiveRecord::Associations::CollectionAssociation
+      when ::ActiveRecord::Associations::CollectionAssociation
         association.delete(association.klass.find(params[:resource_id]))
-      when ActiveRecord::Associations::SingularAssociation
+      when ::ActiveRecord::Associations::SingularAssociation
         if resource.send(params[:relationship])&.id&.to_s == params[:resource_id]
           resource.update(params[:relationship] => nil)
         end
@@ -140,13 +145,13 @@ module StandardAPI
       subresource = association.klass.find(params[:resource_id])
 
       result = case association
-      when ActiveRecord::Associations::CollectionAssociation
+      when ::ActiveRecord::Associations::CollectionAssociation
         association.concat(subresource)
-      when ActiveRecord::Associations::SingularAssociation
+      when ::ActiveRecord::Associations::SingularAssociation
         resource.update(params[:relationship] => subresource)
       end
       head result ? :created : :bad_request
-    rescue ActiveRecord::RecordNotUnique
+    rescue ::ActiveRecord::RecordNotUnique
       render json: {errors: [
         "Relationship between #{resource.class.name} and #{subresource.class.name} violates unique constraints"
       ]}, status: :bad_request
@@ -169,9 +174,9 @@ module StandardAPI
       subresource = association.klass.new(subresource_params)
 
       result = case association
-      when ActiveRecord::Associations::CollectionAssociation
+      when ::ActiveRecord::Associations::CollectionAssociation
         association.concat(subresource)
-      when ActiveRecord::Associations::SingularAssociation
+      when ::ActiveRecord::Associations::SingularAssociation
         resource.update(params[:relationship] => subresource)
       end
 
@@ -308,9 +313,10 @@ module StandardAPI
       includes = {}
       attributes&.each do |key, value|
         if association = model.reflect_on_association(key)
-          includes[key] = nested_includes(association.klass, value)
+          includes[key] = value.is_a?(Array) ? {} : nested_includes(association.klass, value)
         end
       end
+
       includes
     end
 
