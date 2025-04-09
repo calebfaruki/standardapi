@@ -16,26 +16,22 @@ module StandardAPI
       return if !acl_dir.exist?
 
       traverse(acl_dir) do |child|
-        mod = child.classify.constantize
-        prefix = child.delete_suffix('_acl').gsub('/', '_')
+        acl_module = child.classify.constantize
+        acl_model = child.delete_suffix('_acl').gsub('/', '_')
 
-        [:sorts, :includes, :attributes].each do |m|
-          next if !mod.instance_methods.include?(m)
-          mod.send :alias_method, "#{prefix}_#{m}".to_sym, m
-          mod.send :remove_method, m
+        %i[sorts includes attributes context nested filter].each do |acl_method|
+          next unless acl_module.instance_methods.include?(acl_method)
+          alias_method = case acl_method
+            when :nested then "nested_#{acl_model}_attributes"
+            when :filter then "filter_#{acl_model}_params"
+            else "#{acl_model}_#{acl_method}"
+            end
+
+          acl_module.send :alias_method, alias_method, acl_method
+          acl_module.send :remove_method, acl_method
         end
 
-        if mod.instance_methods.include?(:nested)
-          mod.send :alias_method, "nested_#{prefix}_attributes".to_sym, :nested
-          mod.send :remove_method, :nested
-        end
-
-        if mod.instance_methods.include?(:filter)
-          mod.send :alias_method, "filter_#{prefix}_params".to_sym, :filter
-          mod.send :remove_method, :filter
-        end
-
-        application_controller.include mod
+        application_controller.include acl_module
       end
     end
 
