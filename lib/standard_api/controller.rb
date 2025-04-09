@@ -58,10 +58,11 @@ module StandardAPI
     end
 
     def create
-      record = model.new(model_params)
+      record = model.new
+      record.assign_attributes(model_params)
       instance_variable_set("@#{model.model_name.singular}", record)
 
-      if record.save
+      if record.save(context: model_context)
         if request.format == :html
           redirect_to url_for(
             controller: record.class.base_class.model_name.collection,
@@ -90,7 +91,8 @@ module StandardAPI
         record.send(key).attach(signed_id_or_ids)
       end
 
-      if record.update(model_params)
+      record.assign_attributes(model_params)
+      if record.save(context: model_context)
         if request.format == :html
           redirect_to url_for(
             controller: record.class.base_class.model_name.collection,
@@ -244,6 +246,12 @@ module StandardAPI
         self.send("#{model.model_name.singular}_sorts")
       else
         []
+      end
+    end
+
+    def model_context
+      if self.respond_to?("#{model.model_name.singular}_context", true)
+        self.send("#{model.model_name.singular}_context")
       end
     end
 

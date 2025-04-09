@@ -19,7 +19,7 @@ module StandardAPI
         acl_module = child.classify.constantize
         acl_model = child.delete_suffix('_acl').gsub('/', '_')
 
-        %i[sorts includes attributes context nested filter].each do |acl_method|
+        %i[sorts includes attributes context nested filter context].each do |acl_method|
           next unless acl_module.instance_methods.include?(acl_method)
           alias_method = case acl_method
             when :nested then "nested_#{acl_model}_attributes"

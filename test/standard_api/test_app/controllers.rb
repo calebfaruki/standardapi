@@ -54,6 +54,9 @@ class PhotosController < ApplicationController
     [ :account ]
   end
 
+  def photos_context
+    :access_public
+  end
 end
 
 class ReferencesController < ApplicationController

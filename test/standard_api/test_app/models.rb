@@ -4,6 +4,8 @@ class Account < ActiveRecord::Base
   has_many :photos, -> { sort(:created_at) }
   belongs_to :property
   belongs_to :subject, polymorphic: true
+
+  enum access: { public: 0, private: 1 }, _suffix: true
 end
 
 class Photo < ActiveRecord::Base
@@ -112,6 +114,7 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       t.integer  "account_id"
       t.integer  "property_id"
       t.string   "format",                 limit: 255
+      t.integer  'access', limit: 2, null: false, default: 0
       t.datetime "created_at",                         null: false
     end
 
