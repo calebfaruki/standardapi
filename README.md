@@ -5,26 +5,32 @@ interface to your Rails models.
 
 # Installation
 
-    gem install standardapi
+```sh
+gem install standardapi
+```
 
 In your `Gemfile`:
 
-    gem 'standardapi', require: 'standard_api'
+```rb
+gem 'standardapi', require: 'standard_api'
+```
 
 Optionally in `config/application.rb`:
 
-    module MyApplication
-      class Application < Rails::Application
-        # Initialize configuration defaults for originally generated Rails version.
-        config.load_defaults 6.0
+```rb
+module MyApplication
+  class Application < Rails::Application
+    # Initialize configuration defaults for originally generated Rails version.
+    config.load_defaults 6.0
 
-        # QueryEncoding middleware intercepts and parses the query string
-        # as MessagePack if the `Query-Encoding` header is set to `application/msgpack`
-        # which allows GET request with types as opposed to all values being interpeted
-        # as strings
-        config.middleware.insert_after Rack::MethodOverride, StandardAPI::Middleware::QueryEncoding
-      end
-    end
+    # QueryEncoding middleware intercepts and parses the query string
+    # as MessagePack if the `Query-Encoding` header is set to `application/msgpack`
+    # which allows GET request with types as opposed to all values being interpeted
+    # as strings
+    config.middleware.insert_after Rack::MethodOverride, StandardAPI::Middleware::QueryEncoding
+  end
+end
+```
 
 # Implementation
 
@@ -32,36 +38,38 @@ StandardAPI is a module that can be included into any controller to expose a API
 for. Alternatly, it can be included into `ApplicationController`, giving all
 inherited controllers an exposed API.
 
-    class PhotosController < ApplicationController
-      include StandardAPI
-      
-      # Allowed paramaters
-      # By default any paramaters passed to update and create are whitelisted by
-      # the method named after the model the controller represents. For example,
-      # the following will only allow the `caption` attribute of the `Photo`
-      # model to be set on update or create.
-      def photo_params
-        [:caption]
-      end
-      
-      # Allowed sortings
-      # The sorting is whitelisted as well, you will mostly likely want to
-      # ensure indexes have been created on these columns. In this example the
-      # response can be sorted by any permutation of `id`, `created_at`, and
-      # `updated_at`.
-      def photo_sorts
-        [:id, :created_at, :updated_at]
-      end
-      
-      # Allowed includes
-      # Similarly, the includes (including of relationships in the reponse) are
-      # whitelisted. Note how includes can also support nested includes. In this
-      # case when including the author, the photos that the author took can also
-      # be included.
-      def photo_includes
-        { author: [:photos] }
-      end
-    end
+```rb
+class PhotosController < ApplicationController
+  include StandardAPI
+  
+  # Allowed paramaters
+  # By default any paramaters passed to update and create are whitelisted by
+  # the method named after the model the controller represents. For example,
+  # the following will only allow the `caption` attribute of the `Photo`
+  # model to be set on update or create.
+  def photo_params
+    [:caption]
+  end
+  
+  # Allowed sortings
+  # The sorting is whitelisted as well, you will mostly likely want to
+  # ensure indexes have been created on these columns. In this example the
+  # response can be sorted by any permutation of `id`, `created_at`, and
+  # `updated_at`.
+  def photo_sorts
+    [:id, :created_at, :updated_at]
+  end
+  
+  # Allowed includes
+  # Similarly, the includes (including of relationships in the reponse) are
+  # whitelisted. Note how includes can also support nested includes. In this
+  # case when including the author, the photos that the author took can also
+  # be included.
+  def photo_includes
+    { author: [:photos] }
+  end
+end
+```
 
 ##### Access Control List
 
@@ -69,10 +77,12 @@ For greater control of the allowed paramaters and nesting of paramaters
 `StandardAPI::AccessControlList` is available. To use it include it in your base
 controller:
 
-    class ApplicationController
-        include StandardAPI::Control
-        include StandardAPI::AccessControlList
-    end
+```rb
+class ApplicationController
+  include StandardAPI::Control
+  include StandardAPI::AccessControlList
+end
+```
 
 Then create an ACL file for each model you want in `app/controllers/acl`.
 
@@ -81,35 +91,39 @@ following files:
 
 `app/controllers/acl/photo_acl.rb`:
 
-    module PhotoACL
-      # Allowed attributes
-      def attributes
-        [ :caption ]
-      end
-      
-      # Allowed saving / creating nested attributes
-      def nested
-        [ :camera ]
-      end
-      
-      # Allowed sorts
-      def sorts
-        [ :id, :created_at, :updated_at ]
-      end
-      
-      # Allowed includes
-      def includes
-        [ :author ]
-      end
-    end
+```rb
+module PhotoACL
+  # Allowed attributes
+  def attributes
+    [ :caption ]
+  end
+  
+  # Allowed saving / creating nested attributes
+  def nested
+    [ :camera ]
+  end
+  
+  # Allowed sorts
+  def sorts
+    [ :id, :created_at, :updated_at ]
+  end
+  
+  # Allowed includes
+  def includes
+    [ :author ]
+  end
+end
+```
 
 `app/controllers/acl/author_acl.rb`:
 
-    module AuthorACL
-      def includes
-        [ :photos ]
-      end
-    end
+```rb
+module AuthorACL
+  def includes
+    [ :photos ]
+  end
+end
+```
 
 All of these methods are optional and will be included in ApplicationController
 for StandardAPI to determine allowed attributes, nested attributes, sorts and
@@ -124,7 +138,9 @@ be set with the API and will determine what attributes are allowed by looking
 for a `camera_acl` file.
 
 # API Usage
+
 Resources can be queried via REST style end points
+
 ```
 GET     /records/:id        fetch record
 PATCH   /records/:id        update record
@@ -199,41 +215,42 @@ The only change on calculate routes is the `selects` paramater contains the func
 
 # Testing
 
-And example contoller and it's tests.
+An example contoller and it's tests.
 
-    class PhotosController < ApplicationController
-        include StandardAPI
+```rb
+class PhotosController < ApplicationController
+  include StandardAPI
 
-        # If you have actions you don't want include be sure to hide them,
-        # otherwise if you include StandardAPI::TestCase and you don't have the
-        # action setup, the test will fail.
-        hide_action :destroy
+  # If you have actions you don't want include be sure to hide them,
+  # otherwise if you include StandardAPI::TestCase and you don't have the
+  # action setup, the test will fail.
+  hide_action :destroy
 
-        # Allowed params
-        def photo_params
-          [:id, :file, :caption]
-        end
-  
-        # Allowed sortings
-        def photo_sorts
-          [:id, :created_at, :updated_at, :caption]
-        end
+  # Allowed params
+  def photo_params
+    [:id, :file, :caption]
+  end
 
-        # Allowed includes
-        # You can include the author and the authors photos in the JSON response
-        def photo_includes
-          { :author => [:photos] }
-        end
+  # Allowed sortings
+  def photo_sorts
+    [:id, :created_at, :updated_at, :caption]
+  end
 
-        # Mask for Photo. Provide this method if you want to mask some records
-        # The mask is then applyed to all actions when querring ActiveRecord
-        # Will only allow photos that have id one. For more on the syntax see
-        # the activerecord-filter gem.
-        def mask_for(table_name)
-            { id: 1 }
-        end
+  # Allowed includes
+  # You can include the author and the authors photos in the JSON response
+  def photo_includes
+    { :author => [:photos] }
+  end
 
-    end
+  # Mask for Photo. Provide this method if you want to mask some records
+  # The mask is then applyed to all actions when querring ActiveRecord
+  # Will only allow photos that have id one. For more on the syntax see
+  # the activerecord-filter gem.
+  def mask_for(table_name)
+      { id: 1 }
+  end
+end
+```
 
 # Usage
 
