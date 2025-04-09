@@ -86,15 +86,11 @@ module StandardAPI
       record = resources.find(params[:id])
       instance_variable_set("@#{model_name}", record)
 
-      if defined?(ActiveStorage)
-        active_storage_params.each do |key, signed_id_or_ids|
-          record.send(key).attach(signed_id_or_ids)
-        end
+      active_storage_params.each do |key, signed_id_or_ids|
+        record.send(key).attach(signed_id_or_ids)
       end
 
-      filtered_params = model_params.except(*active_storage_params.keys)
-
-      if record.update(filtered_params)
+      if record.update(model_params)
         if request.format == :html
           redirect_to url_for(
             controller: record.class.base_class.model_name.collection,
@@ -252,7 +248,11 @@ module StandardAPI
     end
 
     def active_storage_params
-      params[model.model_name.singular].select { |k, v| model.reflect_on_attachment(k) && !v.nil? }.compact
+      if defined?(ActiveStorage)
+        params[model.model_name.singular].select { |k, v| model.reflect_on_attachment(k) && !v.nil? }.compact
+      else
+        []
+      end
     end
 
     def model_params
