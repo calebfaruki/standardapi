@@ -5,14 +5,14 @@ class Account < ActiveRecord::Base
   has_many :photos, -> { order(:created_at) }
   belongs_to :property
   belongs_to :subject, polymorphic: true
-
-  enum access: { public: 0, private: 1 }, _suffix: true
 end
 
 class Photo < ActiveRecord::Base
   belongs_to :account, counter_cache: true
   has_and_belongs_to_many :properties
   has_one :camera
+
+  enum :access, { public: 0, private: 1 }, suffix: true
 end
 
 class Document < ActiveRecord::Base

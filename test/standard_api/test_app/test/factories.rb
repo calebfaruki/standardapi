@@ -14,6 +14,7 @@ FactoryBot.define do
   end
 
   factory :photo do
+    access          { :public }
     format          { ['jpg', 'png', 'tiff'].sample }
   end
 
