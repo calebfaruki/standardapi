@@ -247,7 +247,7 @@ class PhotosController < ApplicationController
   # Will only allow photos that have id one. For more on the syntax see
   # the activerecord-filter gem.
   def mask_for(table_name)
-      { id: 1 }
+    { id: 1 }
   end
 end
 ```
