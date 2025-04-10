@@ -11,6 +11,8 @@ class Photo < ActiveRecord::Base
   belongs_to :account, counter_cache: true
   has_and_belongs_to_many :properties
   has_one :camera
+
+  enum :access, { public: 0, private: 1 }, suffix: true
 end
 
 class Document < ActiveRecord::Base
@@ -132,6 +134,7 @@ class CreateModelTables < ActiveRecord::Migration[6.0]
       t.integer  "account_id"
       t.integer  "property_id"
       t.string   "format",                 limit: 255
+      t.integer  'access', limit: 2, null: false, default: 0
       t.datetime "created_at",                         null: false
     end
 

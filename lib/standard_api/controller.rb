@@ -58,10 +58,11 @@ module StandardAPI
     end
 
     def create
-      record = model.new(model_params)
+      record = model.new
+      record.assign_attributes(model_params)
       instance_variable_set("@#{model.model_name.singular}", record)
 
-      if record.save
+      if record.save(context: model_context)
         headers['Affected-Rows'] = 1
         if request.format == :html
           redirect_to url_for(
@@ -88,15 +89,12 @@ module StandardAPI
       record = resources.find(params[:id])
       instance_variable_set("@#{model_name}", record)
 
-      if defined?(ActiveStorage)
-        active_storage_params.each do |key, signed_id_or_ids|
-          record.send(key).attach(signed_id_or_ids)
-        end
+      active_storage_params.each do |key, signed_id_or_ids|
+        record.send(key).attach(signed_id_or_ids)
       end
 
-      filtered_params = model_params.except(*active_storage_params&.keys)
-
-      if record.update(filtered_params)
+      record.assign_attributes(model_params)
+      if record.save(context: model_context)
         headers['Affected-Rows'] = 1
         if request.format == :html
           redirect_to url_for(
@@ -256,9 +254,17 @@ module StandardAPI
       end
     end
 
+    def model_context
+      if self.respond_to?("#{model.model_name.singular}_context", true)
+        self.send("#{model.model_name.singular}_context")
+      end
+    end
+
     def active_storage_params
       if defined?(ActiveStorage)
         params[model.model_name.singular].select { |k, v| model.reflect_on_attachment(k) && !v.nil? }.compact
+      else
+        []
       end
     end
 
