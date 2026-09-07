@@ -1,6 +1,22 @@
 module StandardAPI
   module Helpers
 
+    def column_default_value(column, model)
+      return nil if column.default.nil?
+
+      cast_type_for_column(column, model).deserialize(column.default)
+    end
+
+    def cast_type_for_column(column, model)
+      if column.respond_to?(:fetch_cast_type)
+        column.fetch_cast_type(model.connection)
+      elsif column.respond_to?(:cast_type)
+        column.cast_type
+      else
+        model.connection.lookup_cast_type_from_column(column)
+      end
+    end
+
     def serialize_attribute(json, record, name, type)
       value = record.send(name)
 

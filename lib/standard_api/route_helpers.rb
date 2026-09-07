@@ -34,7 +34,7 @@ module StandardAPI
         resources_options[:except].reject! { |a| standard_resource_actions.include?(a) }
       end
 
-      resources(*resources, resources_options) do
+      resources(*resources, **resources_options) do
         block.call if block # custom routes take precedence over standardapi routes
 
         actions = parent_resource.actions + standard_resource_actions
@@ -86,7 +86,7 @@ module StandardAPI
     def standard_resource(*resource, &block)
       options = resource.extract_options!.dup
 
-      resource(*resource, options) do
+      resource(*resource, **options) do
         available_actions = if only = parent_resource.instance_variable_get(:@only)
           Array(only).map(&:to_sym)
         else
